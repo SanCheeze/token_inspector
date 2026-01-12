@@ -1,0 +1,8 @@
+# Netscape HTTP Cookie File
+# http://curl.haxx.se/rfc/cookie_spec.html
+# This is a generated file!  Do not edit.
+
+.solscan.io	TRUE	/	FALSE	1799603790	_ga	GA1.1.1188072258.1758706179
+api-v2.solscan.io	FALSE	/	TRUE	1767437380	auth-token	eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InNlbnpvdjIwMDJAbWFpbC5ydSIsImFjdGlvbiI6ImxvZ2dlZCIsImlhdCI6MTc1ODc5NzM4MSwiZXhwIjoxNzY5NTk3MzgxfQ.uaiBaSvDrB6xnNEAcZ9jhsiMSSBul41hZoeJaKNuK2E
+solscan.io	FALSE	/	FALSE	1790333380	USER_INFO	%7B%22userInfo%22%3A%7B%22email%22%3A%22senzov2002%40mail.ru%22%2C%22isConfirm%22%3Atrue%2C%22roles%22%3A%5B%22normal%22%5D%7D%7D
+.solscan.io	TRUE	/	FALSE	1799603790	_ga_PS3V7B7KV0	GS2.1.s1765043790$o108$g0$t1765043790$j60$l0$h0

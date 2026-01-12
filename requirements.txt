@@ -1,0 +1,6 @@
+aiogram
+aiohttp
+asyncpg
+pandas
+python-dotenv
+cachetools
