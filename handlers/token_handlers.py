@@ -2,21 +2,15 @@
 
 import io
 import os
-import asyncio
 import asyncpg
-import pandas as pd
 from aiogram import Router, types
 from aiogram.filters import Command
 from datetime import datetime, timezone, timedelta
 
-from handlers.decorators import throttled
-
 from db.db import (
     init_db_pool,
     wallets_exist_for_token,
-    load_wallets,
     insider_buyers,
-    get_all_wallets_list,
     filter_wallets_by_min_buy,
     filter_most_active_wallets,
     get_related_wallets
@@ -26,6 +20,7 @@ from scripts.token_analyser import inspect_token
 from scripts.token_utils import get_wallet_history
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 
@@ -38,6 +33,19 @@ def setup_token_handlers(dp, in_bot):
     global bot
     bot = in_bot
     dp.include_router(router)
+
+
+async def _ensure_token_data(pool, token: str, message: types.Message) -> None:
+    exists = await wallets_exist_for_token(pool, token)
+    if not exists:
+        await message.answer(f"Данных по {token} нет — загружаю...")
+        await inspect_token(token)
+
+
+async def _get_db_pool() -> "asyncpg.Pool":
+    if not DB_URL:
+        raise RuntimeError("DB_URL environment variable is not set")
+    return await init_db_pool(DB_URL)
 
 
 # ------------------- /start -------------------
@@ -111,14 +119,11 @@ async def cmd_related(message: types.Message):
             "Использование:\n/related <token>\n\n/related\n<token_1>\n<token_2>..."
         )
 
-    pool = await init_db_pool(DB_URL)
+    pool = await _get_db_pool()
 
     # Проверяем наличие данных
     for token in token_list:
-        exists = await wallets_exist_for_token(pool, token)
-        if not exists:
-            await message.answer(f"Данных по {token} нет — загружаю...")
-            await inspect_token(token)
+        await _ensure_token_data(pool, token, message)
 
     # Получаем данные
     related = await get_related_wallets(pool, token_list)
@@ -157,12 +162,9 @@ async def cmd_min_buy(message: types.Message):
 
     await message.answer(f"Проверяем токен {token_mint}...")
 
-    pool = await init_db_pool(DB_URL)
+    pool = await _get_db_pool()
 
-    exists = await wallets_exist_for_token(pool, token_mint)
-    if not exists:
-        await message.answer("Данных нет — скачиваю...")
-        await inspect_token(token_mint)
+    await _ensure_token_data(pool, token_mint, message)
 
     wallets = await filter_wallets_by_min_buy(pool, token_mint, min_usd)
     await pool.close()
@@ -192,12 +194,9 @@ async def cmd_most_active_traders(message: types.Message):
 
     await message.answer(f"Проверяем токен {token_mint}...")
 
-    pool = await init_db_pool(DB_URL)
+    pool = await _get_db_pool()
 
-    exists = await wallets_exist_for_token(pool, token_mint)
-    if not exists:
-        await message.answer("Данных нет — скачиваю...")
-        await inspect_token(token_mint)
+    await _ensure_token_data(pool, token_mint, message)
 
     # минимум для попадания в активные трейдеры
     MIN_TRADES = 5
@@ -285,7 +284,7 @@ async def cmd_insider_buyers(message: types.Message):
         + (f"\nТокенов: {len(tokens)}" if tokens else "\nПо всем токенам")
     )
 
-    pool = await init_db_pool(DB_URL)
+    pool = await _get_db_pool()
 
     try:
         df = await insider_buyers(pool, tokens=tokens or None)

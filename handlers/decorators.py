@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, Awaitable
+from typing import Any, Awaitable, Callable, Dict, Optional
 from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject
 from cachetools import TTLCache
@@ -31,6 +31,14 @@ class ThrottlingMiddleware(BaseMiddleware):
         # self.cache = TTLCache(maxsize=10_000, ttl=self.delay)
         self.caches = dict()
 
+    @staticmethod
+    def _get_throttle_key(event: TelegramObject) -> Optional[int]:
+        if hasattr(event, "from_user") and event.from_user:
+            return event.from_user.id
+        if hasattr(event, "chat") and event.chat:
+            return event.chat.id
+        return None
+
     async def __call__(
             self,
             handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
@@ -42,18 +50,21 @@ class ThrottlingMiddleware(BaseMiddleware):
         rate = getattr(decorated_func, "rate", None)
         on_throttle = getattr(decorated_func, "on_throttle", None)
 
-        if rate and isinstance(rate,
-                               int) and rate > 0:  # Check if rate arg passed and passed correctly (decorator check)
+        if rate and isinstance(rate, int) and rate > 0:
             if id(decorated_func) not in self.caches:  # Check if func TTL already in dict. If not - create it.
                 self.caches[id(decorated_func)] = TTLCache(maxsize=10_000, ttl=rate)
 
-            if event.chat.id in self.caches[id(decorated_func)].keys():
+            key = self._get_throttle_key(event)
+            if key is None:
+                return await handler(event, data)
+
+            if key in self.caches[id(decorated_func)]:
                 if callable(on_throttle):
                     return await on_throttle(event, data)
                 else:
                     return
             else:
-                self.caches[id(decorated_func)][event.from_user.id] = event.from_user.id
+                self.caches[id(decorated_func)][key] = key
                 return await handler(event, data)
         else:
             return await handler(event, data)
