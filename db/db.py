@@ -385,6 +385,20 @@ async def insider_buyers(pool, tokens: list[str] | None = None) -> pd.DataFrame:
     # -------------------------------------------------
     # ФИЛЬТР ВАЛИДНЫХ ТРЕЙДОВ
     # -------------------------------------------------
+    if "price" not in df.columns:
+        if {"usd_value", "base_amount"}.issubset(df.columns):
+            base_amount = df["base_amount"].replace(0, pd.NA)
+            df["price"] = df["usd_value"] / base_amount
+        else:
+            return pd.DataFrame(columns=["wallet", "count"])
+    elif {"usd_value", "base_amount"}.issubset(df.columns):
+        base_amount = df["base_amount"].replace(0, pd.NA)
+        derived_price = df["usd_value"] / base_amount
+        df["price"] = df["price"].fillna(derived_price)
+
+    if not {"ts", "side", "price"}.issubset(df.columns):
+        return pd.DataFrame(columns=["wallet", "count"])
+
     df = df[
         (df["price"].notna()) &
         (df["price"] > 0) &
@@ -438,4 +452,3 @@ async def insider_buyers(pool, tokens: list[str] | None = None) -> pd.DataFrame:
     )
 
     return result
-
