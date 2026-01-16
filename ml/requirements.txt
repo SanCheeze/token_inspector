@@ -1,0 +1,6 @@
+asyncpg
+numpy
+pandas
+pyarrow
+lightgbm
+xgboost
