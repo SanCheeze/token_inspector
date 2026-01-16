@@ -95,10 +95,14 @@ async def build_dataset_from_db(
 
 
 def _resolve_t0(row: pd.Series, trades: list[dict]) -> int:
-    created_ts = _coerce_ts(row.get(CREATED_TS_COLUMN)) if CREATED_TS_COLUMN in row else None
+    created_ts = (
+        _coerce_ts(row.get(CREATED_TS_COLUMN)) if CREATED_TS_COLUMN in row.index else None
+    )
     if created_ts is not None:
         return created_ts
-    first_trade_ts = _coerce_ts(row.get(FIRST_TRADE_TS_COLUMN)) if FIRST_TRADE_TS_COLUMN in row else None
+    first_trade_ts = (
+        _coerce_ts(row.get(FIRST_TRADE_TS_COLUMN)) if FIRST_TRADE_TS_COLUMN in row.index else None
+    )
     if first_trade_ts is not None:
         return first_trade_ts
     ts_values = [trade.get("ts") for trade in trades if trade.get("ts") is not None]

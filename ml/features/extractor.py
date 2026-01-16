@@ -165,9 +165,14 @@ def extract_features(
     bundle_volume = sum(trade.usd_value for trade in bundle_trades)
     bundle_net_flow = sum(trade.usd_value * trade.side for trade in bundle_trades)
     if bundle_trades:
-        bundle_times = [trade.ts - t0 for trade in bundle_trades]
-        bundle_first_entry = float(min(bundle_times))
-        bundle_entry_std = float(np.std(bundle_times))
+        first_by_wallet: dict[str, int] = {}
+        for trade in bundle_trades:
+            current = first_by_wallet.get(trade.wallet)
+            if current is None or trade.ts < current:
+                first_by_wallet[trade.wallet] = trade.ts
+        entry_times = [ts - t0 for ts in first_by_wallet.values()]
+        bundle_first_entry = float(min(entry_times))
+        bundle_entry_std = float(np.std(entry_times))
     else:
         bundle_first_entry = float(WINDOW_SEC)
         bundle_entry_std = 0.0

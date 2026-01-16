@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from db import get_pool, init_pg
+from ml.dataset.db_pool import get_pool, init_pg
 from ml.dataset.build_dataset import build_dataset, build_dataset_from_db
 from ml.models.infer import predict_for_token
 from ml.models.train_lgbm import train_model
