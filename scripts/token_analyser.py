@@ -1,9 +1,9 @@
 # scripts/token_analyser.py
 
-import os
 import asyncio
+import os
 import pandas as pd
-from db.db import init_db_pool, init_tables, save_wallets, load_wallets, save_token_metadata, token_exists
+from db import get_pool, init_pg, save_wallets, load_wallets, save_token_metadata, token_exists
 from .token_utils import load_all_defi_activity, analyze_wallets_fifo, fetch_token_metadata
 from dotenv import load_dotenv
 
@@ -20,8 +20,7 @@ async def inspect_token(token_mint: str):
     - сохраняет результат в базу wallets
     """
 
-    pool = await init_db_pool(DB_URL)
-    await init_tables(pool)
+    pool = get_pool()
 
     # -------------------
     # Сохраняем метаданные токена (если ещё нет)
@@ -45,7 +44,6 @@ async def inspect_token(token_mint: str):
     # -------------------
     existing_wallets = await load_wallets(pool, token_mint)
     if not existing_wallets.empty:
-        await pool.close()
         return {"message": f"Данные по токену {token_mint} уже есть в базе."}
 
     # -------------------
@@ -56,7 +54,6 @@ async def inspect_token(token_mint: str):
     print(f"Всего строк транзакций: {len(df)}")
 
     if df.empty:
-        await pool.close()
         return {"message": f"Транзакции для токена {token_mint} не найдены."}
 
     # -------------------
@@ -69,11 +66,19 @@ async def inspect_token(token_mint: str):
     # -------------------
     await save_wallets(pool, token_mint, wallets_df)
 
-    await pool.close()
     return {"message": f"Анализ токена {token_mint} завершён, {len(wallets_df)} кошельков сохранено."}
 
 
 if __name__ == "__main__":
     import sys
     token = sys.argv[1] if len(sys.argv) > 1 else "QxSK4nJG2TQYoJoTyjjhcePAy1vgE9HbD6inTKWpump"
-    asyncio.run(inspect_token(token))
+
+    async def _main():
+        await init_pg(DB_URL)
+        try:
+            await inspect_token(token)
+        finally:
+            pool = get_pool()
+            await pool.close()
+
+    asyncio.run(_main())

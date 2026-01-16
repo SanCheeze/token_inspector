@@ -6,6 +6,7 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 from aiogram import Bot, Dispatcher
 from handlers.decorators import ThrottlingMiddleware
 from handlers.token_handlers import setup_token_handlers
+from db import init_pg
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,6 +15,13 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 WEBAPP_HOST = os.getenv("WEBAPP_HOST", "0.0.0.0")
 WEBAPP_PORT = int(os.getenv("WEBAPP_PORT", 8080))
 WEBHOOK_PATH = os.getenv("WEBHOOK_PATH", "/webhook")
+DB_URL = os.getenv("DB_URL")
+
+
+async def init_db():
+    if not DB_URL:
+        raise RuntimeError("DB_URL environment variable is not set")
+    await init_pg(DB_URL)
 
 
 async def set_webhook(bot: Bot):
@@ -33,6 +41,7 @@ async def local_debug_via_polling():
 
     # dp.message.middleware(ThrottlingMiddleware())
     setup_token_handlers(dp, bot)
+    dp.startup.register(init_db)
 
     # Удаляем возможный старый webhook
     await bot.delete_webhook(drop_pending_updates=True)
@@ -51,7 +60,7 @@ def production_version_via_webhook():
 
     dp.message.middleware(ThrottlingMiddleware())
     setup_token_handlers(dp, bot)
-
+    dp.startup.register(init_db)
     dp.startup.register(lambda: set_webhook(bot))
 
     app = web.Application()

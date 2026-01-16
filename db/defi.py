@@ -1,17 +1,11 @@
-# db/db.py
-
 import json
+from typing import List, Optional
+
 import asyncpg
 import pandas as pd
-from typing import Dict, Any, List, Optional
 
 from scripts.trades_utils import add_price_to_trades
-
-
-
-# ============================================================
-#  ИНИЦИАЛИЗАЦИЯ БАЗЫ
-# ============================================================
+from .pg import get_pool
 
 WALLETS_COLUMNS = [
     "id", "token", "wallet", "pnl", "num_buys", "num_sells",
@@ -19,38 +13,8 @@ WALLETS_COLUMNS = [
 ]
 
 
-async def init_db_pool(db_url: str) -> asyncpg.pool.Pool:
-    return await asyncpg.create_pool(dsn=db_url)
-
-
-async def init_tables(pool: asyncpg.pool.Pool):
-    async with pool.acquire() as conn:
-
-        await conn.execute("""
-        CREATE TABLE IF NOT EXISTS tokens (
-            id SERIAL PRIMARY KEY,
-            token TEXT UNIQUE NOT NULL,
-            symbol TEXT,
-            content JSONB,
-            created_at TIMESTAMPTZ DEFAULT NOW()
-        );
-        """)
-
-        await conn.execute("""
-        CREATE TABLE IF NOT EXISTS wallets (
-            id SERIAL PRIMARY KEY,
-            token TEXT NOT NULL,
-            wallet TEXT NOT NULL,
-            pnl DOUBLE PRECISION,
-            num_buys INTEGER,
-            num_sells INTEGER,
-            trades JSONB,
-            created_at TIMESTAMPTZ DEFAULT NOW(),
-            UNIQUE(token, wallet)
-        );
-        """)
-
-        print("Tables 'tokens' and 'wallets' are ready.")
+def _ensure_pool(pool: asyncpg.Pool | None) -> asyncpg.Pool:
+    return pool or get_pool()
 
 
 # ============================================================
@@ -58,6 +22,7 @@ async def init_tables(pool: asyncpg.pool.Pool):
 # ============================================================
 
 async def token_exists(pool, token: str) -> bool:
+    pool = _ensure_pool(pool)
     async with pool.acquire() as conn:
         return await conn.fetchval(
             "SELECT EXISTS(SELECT 1 FROM tokens WHERE token=$1);",
@@ -66,6 +31,7 @@ async def token_exists(pool, token: str) -> bool:
 
 
 async def save_token_metadata(pool: asyncpg.pool.Pool, metadata: dict):
+    pool = _ensure_pool(pool)
     query = """
     INSERT INTO tokens (token, symbol, content)
     VALUES ($1, $2, $3)
@@ -78,6 +44,7 @@ async def save_token_metadata(pool: asyncpg.pool.Pool, metadata: dict):
 
 
 async def load_token_metadata(pool, token: str) -> Optional[dict]:
+    pool = _ensure_pool(pool)
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM tokens WHERE token=$1;", token)
         return dict(row) if row else None
@@ -88,6 +55,7 @@ async def load_token_metadata(pool, token: str) -> Optional[dict]:
 # ============================================================
 
 async def wallets_exist_for_token(pool, token: str) -> bool:
+    pool = _ensure_pool(pool)
     async with pool.acquire() as conn:
         return await conn.fetchval(
             "SELECT EXISTS(SELECT 1 FROM wallets WHERE token=$1);",
@@ -100,6 +68,7 @@ async def save_wallets(pool, token: str, wallets_df: pd.DataFrame):
     Сохраняем кошельки.
     trades — JSONB, поэтому нужно передавать как строку JSON.
     """
+    pool = _ensure_pool(pool)
     records = []
 
     for _, row in wallets_df.iterrows():
@@ -148,6 +117,7 @@ async def load_wallets(pool, token: str | None = None) -> pd.DataFrame:
     Загружаем кошельки как pandas DataFrame.
     Если token=None — загружаем все кошельки.
     """
+    pool = _ensure_pool(pool)
     async with pool.acquire() as conn:
         if token is None:
             rows = await conn.fetch("SELECT * FROM wallets;")
@@ -167,9 +137,14 @@ async def load_wallets(pool, token: str | None = None) -> pd.DataFrame:
     df = df.reindex(columns=WALLETS_COLUMNS)
 
     # trades уже Python list (JSONB)
-    df["trades"] = df["trades"].apply(
-        lambda x: json.loads(x) if isinstance(x, str) else (x or [])
-    )
+    def normalize_trades(value):
+        if isinstance(value, str):
+            return json.loads(value)
+        if value is None:
+            return []
+        return value
+
+    df["trades"] = df["trades"].apply(normalize_trades)
 
     return df
 
@@ -206,7 +181,7 @@ async def filter_most_active_wallets(pool, token: str, min_trades: int) -> List[
     ]
 
 
-async def get_related_wallets(pool, token_list):
+async def get_related_wallets(pool, token_list) -> list[dict]:
     """
     Универсальная логика поиска связанных кошельков.
 
@@ -219,7 +194,9 @@ async def get_related_wallets(pool, token_list):
         - ищем пересечения среди этих токенов (как старая /related)
     """
 
-    from collections import defaultdict, Counter
+    from collections import defaultdict
+
+    pool = _ensure_pool(pool)
 
     # -----------------------------
     # ЗАГРУЖАЕМ ВСЕ КОШЕЛЬКИ ИЗ ВХОДНЫХ ТОКЕНОВ
@@ -299,11 +276,13 @@ async def get_related_wallets(pool, token_list):
 #  ADD PRICES TO TRADES
 # ============================================================
 
-async def enrich_wallets_trades_with_price(pool: asyncpg.pool.Pool):
+async def enrich_wallets_trades_with_price(pool: asyncpg.Pool | None):
     """
     Проходит по всей таблице wallets
     и добавляет поле price в каждый трейд
     """
+
+    pool = _ensure_pool(pool)
 
     async with pool.acquire() as conn:
         rows = await conn.fetch("""
@@ -350,6 +329,8 @@ async def insider_buyers(pool, tokens: list[str] | None = None) -> pd.DataFrame:
         None  -> использовать ВСЮ таблицу wallets
         list  -> использовать только записи по этим токенам
     """
+
+    pool = _ensure_pool(pool)
 
     # -------------------------------------------------
     # ЗАГРУЗКА ДАННЫХ
