@@ -5,11 +5,28 @@ import asyncpg
 import pandas as pd
 
 from scripts.trades_utils import add_price_to_trades
+from scripts.token_utils import load_token_trades_solscan
 from .pg import get_pool
 
 WALLETS_COLUMNS = [
     "id", "token", "wallet", "pnl", "num_buys", "num_sells",
     "trades", "created_at"
+]
+
+TOKEN_TRADES_COLUMNS = [
+    "signature",
+    "ts",
+    "action",
+    "from",
+    "token1",
+    "amount1",
+    "token1_decimals",
+    "token2",
+    "amount2",
+    "token2_decimals",
+    "value",
+    "platforms",
+    "sources",
 ]
 
 
@@ -48,6 +65,101 @@ async def load_token_metadata(pool, token: str) -> Optional[dict]:
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM tokens WHERE token=$1;", token)
         return dict(row) if row else None
+
+
+def _normalize_json_value(value):
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    if isinstance(value, pd.Timestamp):
+        return int(value.timestamp())
+    if hasattr(value, "item"):
+        return value.item()
+    if pd.isna(value):
+        return None
+    return value
+
+
+def _serialize_token_trades(df: pd.DataFrame) -> list[dict]:
+    trades = []
+    for _, row in df.iterrows():
+        trade = {
+            "signature": _normalize_json_value(row.get("Signature")),
+            "ts": _normalize_json_value(row.get("Human Time TS")),
+            "action": _normalize_json_value(row.get("Action")),
+            "from": _normalize_json_value(row.get("From")),
+            "token1": _normalize_json_value(row.get("Token1")),
+            "amount1": _normalize_json_value(row.get("Amount1")),
+            "token1_decimals": _normalize_json_value(row.get("TokenDecimals1")),
+            "token2": _normalize_json_value(row.get("Token2")),
+            "amount2": _normalize_json_value(row.get("Amount2")),
+            "token2_decimals": _normalize_json_value(row.get("TokenDecimals2")),
+            "value": _normalize_json_value(row.get("Value")),
+            "platforms": _normalize_json_value(row.get("Platforms")),
+            "sources": _normalize_json_value(row.get("Sources")),
+        }
+        trades.append(trade)
+    return trades
+
+
+async def save_token_trades(pool, token: str, trades: list[dict]):
+    pool = _ensure_pool(pool)
+    query = """
+    INSERT INTO tokens (token, trades, trades_updated_at)
+    VALUES ($1, $2, NOW())
+    ON CONFLICT (token) DO UPDATE
+    SET trades = EXCLUDED.trades,
+        trades_updated_at = NOW()
+    """
+    async with pool.acquire() as conn:
+        await conn.execute(query, token, json.dumps(trades))
+
+
+async def load_token_trades(pool, token: str) -> list[dict]:
+    pool = _ensure_pool(pool)
+    async with pool.acquire() as conn:
+        trades = await conn.fetchval("SELECT trades FROM tokens WHERE token=$1;", token)
+    if trades is None:
+        return []
+    if isinstance(trades, str):
+        return json.loads(trades)
+    return trades
+
+
+async def token_trades_exist(pool, token: str) -> bool:
+    pool = _ensure_pool(pool)
+    async with pool.acquire() as conn:
+        return await conn.fetchval(
+            """
+            SELECT EXISTS(
+                SELECT 1
+                FROM tokens
+                WHERE token=$1
+                  AND trades IS NOT NULL
+                  AND jsonb_array_length(trades) > 0
+            );
+            """,
+            token,
+        )
+
+
+async def refresh_token_trades(
+    pool,
+    token: str,
+    from_time: int | None = None,
+    force: bool = False,
+) -> list[dict]:
+    pool = _ensure_pool(pool)
+    if not force and await token_trades_exist(pool, token):
+        return await load_token_trades(pool, token)
+
+    df = await load_token_trades_solscan(token, from_time=from_time)
+    if df.empty:
+        await save_token_trades(pool, token, [])
+        return []
+
+    trades = _serialize_token_trades(df)
+    await save_token_trades(pool, token, trades)
+    return trades
 
 
 # ============================================================

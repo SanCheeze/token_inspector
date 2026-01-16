@@ -3,8 +3,17 @@
 import asyncio
 import os
 import pandas as pd
-from db import get_pool, init_pg, save_wallets, load_wallets, save_token_metadata, token_exists
-from .token_utils import load_all_defi_activity, analyze_wallets_fifo, fetch_token_metadata
+from db import (
+    get_pool,
+    init_pg,
+    save_wallets,
+    load_wallets,
+    save_token_metadata,
+    token_exists,
+    refresh_token_trades,
+    load_token_trades,
+)
+from .token_utils import analyze_wallets_fifo, fetch_token_metadata
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -47,14 +56,22 @@ async def inspect_token(token_mint: str):
         return {"message": f"Данные по токену {token_mint} уже есть в базе."}
 
     # -------------------
-    # Загружаем все транзакции токена
+    # Загружаем/обновляем трейды токена
     # -------------------
-    output_file = f"data/{token_mint}_all_defi_activity.csv"
-    df = await load_all_defi_activity(token_mint, output_file=output_file, save_dir="pages")
-    print(f"Всего строк транзакций: {len(df)}")
-
-    if df.empty:
+    await refresh_token_trades(pool, token_mint)
+    trades = await load_token_trades(pool, token_mint)
+    if not trades:
         return {"message": f"Транзакции для токена {token_mint} не найдены."}
+
+    df = pd.DataFrame(trades)
+    df["Human Time"] = pd.to_datetime(df["ts"], unit="s", utc=True)
+    df["From"] = df["from"]
+    df["Token1"] = df["token1"]
+    df["Amount1"] = df["amount1"]
+    df["Token2"] = df["token2"]
+    df["Amount2"] = df["amount2"]
+    df["Value"] = df["value"]
+    print(f"Всего строк транзакций: {len(df)}")
 
     # -------------------
     # Анализируем кошельки

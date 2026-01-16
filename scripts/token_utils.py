@@ -113,6 +113,13 @@ async def load_all_defi_activity(address: str, cookies_path="cookies/solscan_coo
     return result
 
 
+async def load_token_trades_solscan(token: str, from_time: int | None = None) -> pd.DataFrame:
+    df = await load_all_defi_activity(address=token, from_time=from_time, save_dir="pages")
+    if df.empty:
+        return df
+    return df[df["Action"] == "ACTIVITY_TOKEN_SWAP"].reset_index(drop=True)
+
+
 async def get_wallet_history(wallet: str, stop_after_ts: int | None = None):
     """
     Возвращает уникальные токены, которые КОШЕЛЕК ПОКУПАЛ (Token2) 
@@ -233,5 +240,4 @@ async def fetch_token_metadata(token_mint: str) -> dict:
             content = result.get("content", {})
             symbol = token_info.get("symbol") or token_mint
             return {"token": token_mint, "symbol": symbol, "content": content}
-
 
