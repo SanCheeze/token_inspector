@@ -1,6 +1,7 @@
 # handlers/token_handlers.py
 
 import io
+import asyncio
 from aiogram import Router, types
 from aiogram.filters import Command
 from datetime import datetime, timezone, timedelta
@@ -19,6 +20,7 @@ from scripts.token_utils import get_wallet_history
 
 router = Router()
 bot = None
+BASE58_CHARS = set("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
 
 
 def setup_token_handlers(dp, in_bot):
@@ -32,6 +34,12 @@ async def _ensure_token_data(pool, token: str, message: types.Message) -> None:
     if not exists:
         await message.answer(f"Данных по {token} нет — загружаю...")
         await inspect_token(token)
+
+
+def _is_probably_wallet(address: str) -> bool:
+    if not (32 <= len(address) <= 44):
+        return False
+    return all(char in BASE58_CHARS for char in address)
 
 
 # ------------------- /start -------------------
@@ -202,44 +210,132 @@ async def cmd_most_active_traders(message: types.Message):
 # ------------------- /wallet_history <wallet> [days] -------------------
 @router.message(Command("wallet_history"))
 async def cmd_wallet_history(message: types.Message):
-    args = message.text.strip().split()
+    lines = message.text.strip().split("\n")
+    first_line = lines[0].strip()
+    first_parts = first_line.split()
+    last_n_days = 1
 
-    if len(args) < 2:
-        return await message.answer("Использование:\n/wallet_history <wallet_address> [days]")
+    single_mode = False
+    if len(first_parts) >= 2 and (len(first_parts) >= 3 or not first_parts[1].isdigit()):
+        single_mode = True
 
-    wallet = args[1].strip()
-    last_n_days = 1  # default: 1 день
+    if single_mode:
+        wallet = first_parts[1].strip()
+        if len(first_parts) >= 3:
+            try:
+                last_n_days = int(first_parts[2])
+            except ValueError:
+                return await message.answer("days должно быть числом.")
 
-    if len(args) >= 3:
+        if not _is_probably_wallet(wallet):
+            return await message.answer("Некорректный адрес кошелька.")
+
+        await message.answer(
+            f"Получаю токены кошелька {wallet} за последние {last_n_days} день(дней)..."
+        )
+
+        stop_after_ts = int((datetime.now(timezone.utc) - timedelta(days=last_n_days)).timestamp())
+
         try:
-            last_n_days = int(args[2])
-        except:
+            tokens = await get_wallet_history(wallet, stop_after_ts)
+        except Exception as e:
+            return await message.answer(f"❌ Ошибка при получении данных: {e}")
+
+        if not tokens:
+            return await message.answer("Нет купленных токенов за указанный период.")
+
+        txt_bytes = "\n".join(tokens).encode()
+        txt_file = types.BufferedInputFile(
+            txt_bytes,
+            filename=f"wallet_history_{wallet}.txt"
+        )
+
+        return await message.answer_document(
+            txt_file,
+            caption=f"Купленные токены кошелька {wallet} (найдено {len(tokens)})"
+        )
+
+    if len(first_parts) >= 2:
+        try:
+            last_n_days = int(first_parts[1])
+        except ValueError:
             return await message.answer("days должно быть числом.")
 
-    await message.answer(f"Получаю токены кошелька {wallet} за последние {last_n_days} день(дней)...")
+    wallets = [line.strip() for line in lines[1:] if line.strip()]
 
-    # timestamp для ограничения по времени (UTC)
+    if not wallets:
+        return await message.answer(
+            "Использование:\n/wallet_history <wallet_address> [days]\n\n"
+            "/wallet_history [days]\n<wallet_1>\n<wallet_2>"
+        )
+
+    unique_wallets = list(dict.fromkeys(wallets))
+    valid_wallets = []
+    bad_wallets = []
+    for wallet in unique_wallets:
+        if _is_probably_wallet(wallet):
+            valid_wallets.append(wallet)
+        else:
+            bad_wallets.append(wallet)
+
+    if not valid_wallets:
+        return await message.answer("Нет валидных кошельков для проверки.")
+
+    if len(unique_wallets) > 20:
+        return await message.answer("Слишком много кошельков. Максимум: 20")
+
+    await message.answer(
+        f"Получаю токены для {len(valid_wallets)} кошельков за последние {last_n_days} день(дней)..."
+    )
+
     stop_after_ts = int((datetime.now(timezone.utc) - timedelta(days=last_n_days)).timestamp())
+    semaphore = asyncio.Semaphore(4)
 
-    try:
-        # вызываем готовую функцию
-        tokens = await get_wallet_history(wallet, stop_after_ts)
-    except Exception as e:
-        return await message.answer(f"❌ Ошибка при получении данных: {e}")
+    async def fetch_wallet_history(wallet: str):
+        async with semaphore:
+            return await get_wallet_history(wallet, stop_after_ts)
+
+    results = await asyncio.gather(
+        *(fetch_wallet_history(wallet) for wallet in valid_wallets),
+        return_exceptions=True
+    )
+
+    tokens = []
+    seen_tokens = set()
+    failed_wallets = list(bad_wallets)
+    wallets_ok = 0
+
+    for wallet, result in zip(valid_wallets, results):
+        if isinstance(result, Exception):
+            failed_wallets.append(wallet)
+            continue
+
+        wallets_ok += 1
+        for token in result:
+            if token not in seen_tokens:
+                seen_tokens.add(token)
+                tokens.append(token)
+
+    if wallets_ok == 0:
+        return await message.answer("❌ Ошибка при получении данных по всем кошелькам.")
 
     if not tokens:
         return await message.answer("Нет купленных токенов за указанный период.")
 
-    # Формируем txt файл
+    total_wallets = len(valid_wallets) + len(bad_wallets)
     txt_bytes = "\n".join(tokens).encode()
+    filename = f"wallet_history_{total_wallets}_wallets.txt"
     txt_file = types.BufferedInputFile(
         txt_bytes,
-        filename=f"wallet_history_{wallet}.txt"
+        filename=filename
     )
 
     await message.answer_document(
         txt_file,
-        caption=f"Купленные токены кошелька {wallet} (найдено {len(tokens)})"
+        caption=(
+            f"Уникальные токены (найдено {len(tokens)}) | "
+            f"кошельков: {total_wallets} | ошибок: {len(failed_wallets)}"
+        )
     )
 
 
