@@ -13,6 +13,7 @@ from ml.config import (
 )
 from ml.features.gini import gini
 from ml.schema import FEATURE_NAMES
+from ml.trade_adapter import normalize_trade
 
 
 @dataclass(frozen=True)
@@ -35,34 +36,35 @@ def _parse_platforms(platforms: str | None) -> list[str]:
 def _normalize_trades(trades: Iterable[dict], token_mint: str) -> list[NormalizedTrade]:
     normalized: list[NormalizedTrade] = []
     for trade in trades:
-        token1 = trade.get("token1")
-        token2 = trade.get("token2")
+        normalized_trade = normalize_trade(trade)
+        token1 = normalized_trade.get("token1")
+        token2 = normalized_trade.get("token2")
         if token1 != token_mint and token2 != token_mint:
             continue
-        usd_value = trade.get("value")
+        usd_value = normalized_trade.get("value")
         if usd_value is None or float(usd_value) <= 0:
             continue
-        ts_raw = trade.get("ts")
+        ts_raw = normalized_trade.get("ts")
         if ts_raw is None:
             continue
         ts = int(ts_raw)
         side = 1 if token2 == token_mint else -1
         if side > 0:
-            decimals = trade.get("token2_decimals") or 0
-            amount_raw = trade.get("amount2") or 0
+            decimals = normalized_trade.get("token2_decimals") or 0
+            amount_raw = normalized_trade.get("amount2") or 0
         else:
-            decimals = trade.get("token1_decimals") or 0
-            amount_raw = trade.get("amount1") or 0
+            decimals = normalized_trade.get("token1_decimals") or 0
+            amount_raw = normalized_trade.get("amount1") or 0
         token_amount = float(amount_raw) / (10 ** int(decimals)) if decimals is not None else 0.0
-        platform = trade.get("platforms")
-        sources = trade.get("sources")
+        platform = normalized_trade.get("platforms")
+        sources = normalized_trade.get("sources")
         normalized.append(
             NormalizedTrade(
                 ts=ts,
                 usd_value=float(usd_value),
                 side=side,
                 token_amount=token_amount,
-                wallet=str(trade.get("from") or ""),
+                wallet=str(normalized_trade.get("from") or ""),
                 platform=platform,
                 sources=sources,
             )
