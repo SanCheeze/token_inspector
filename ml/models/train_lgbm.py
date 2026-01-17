@@ -51,10 +51,16 @@ def train_model(
         raise ValueError(f"Dataset missing target column: {TARGET_COLUMN}")
 
     meta_df = load_dataset(Path(meta_path)) if meta_path else None
-    if meta_df is None:
+    if meta_df is None or meta_df.empty:
         meta_df = pd.DataFrame({"t0": np.arange(len(df))})
 
-    time_column = "t0" if "t0" in meta_df.columns else meta_df.columns[0]
+    if "t0" in meta_df.columns:
+        time_column = "t0"
+    elif len(meta_df.columns) == 0:
+        meta_df = pd.DataFrame({"t0": np.arange(len(df))})
+        time_column = "t0"
+    else:
+        time_column = meta_df.columns[0]
     meta_df = meta_df.reset_index(drop=True)
     df = df.reset_index(drop=True)
     if len(meta_df) != len(df):
