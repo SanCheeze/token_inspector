@@ -2,6 +2,7 @@
 
 import os
 import json
+import logging
 import aiohttp
 import asyncio
 import pandas as pd
@@ -10,7 +11,7 @@ from collections import deque
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
-from typing import List
+from typing import Any, List
 
 load_dotenv()
 
@@ -20,6 +21,7 @@ HELIUS_API_KEY = os.getenv("HELIUS_API_KEY")
 HELIUS_BASE_URL = "https://mainnet.helius-rpc.com/"
 GMGN_COOKIES_PATH = "cookies/gmgn_cookies.txt"
 GMGN_BASE = "https://gmgn.ai/pf/api/v1/wallet/sol"
+LOGGER = logging.getLogger(__name__)
 
 
 # ------------------- Cookies -------------------
@@ -217,6 +219,56 @@ def filter_wallets_by_min_buy(df_wallets: pd.DataFrame, min_usd: float):
 
 # ------------------- Helius -------------------
 
+def _parse_token_info(token_mint: str, token_info: dict | None) -> tuple[int | None, int | None]:
+    if not token_info:
+        LOGGER.warning("Token info отсутствует для %s", token_mint)
+        return None, None
+
+    decimals = token_info.get("decimals")
+    if decimals is not None and not isinstance(decimals, int):
+        LOGGER.warning("Некорректный decimals для %s: %r", token_mint, decimals)
+        decimals = None
+
+    supply_raw = token_info.get("supply")
+    if not isinstance(supply_raw, int):
+        LOGGER.warning("Некорректный supply для %s: %r", token_mint, supply_raw)
+        supply_raw = None
+
+    if supply_raw is not None:
+        LOGGER.info("Найден supply для %s: %s (decimals=%s)", token_mint, supply_raw, decimals)
+
+    return supply_raw, decimals
+
+
+def parse_token_metadata_response(token_mint: str, data: dict[str, Any]) -> dict:
+    result = data.get("result")
+    if not result:
+        LOGGER.warning("Нет результата метаданных для %s", token_mint)
+        return {
+            "token": token_mint,
+            "symbol": None,
+            "content": [],
+            "decimals": None,
+            "supply": None,
+        }
+
+    token_info = result.get("token_info")
+    content = result.get("content", {})
+    symbol = token_info.get("symbol") if isinstance(token_info, dict) else None
+    if not symbol:
+        symbol = token_mint
+
+    supply_raw, decimals = _parse_token_info(token_mint, token_info if isinstance(token_info, dict) else None)
+
+    return {
+        "token": token_mint,
+        "symbol": symbol,
+        "content": content,
+        "decimals": decimals,
+        "supply": supply_raw,
+    }
+
+
 async def fetch_token_metadata(token_mint: str) -> dict:
     url = f"{HELIUS_BASE_URL}?api-key={HELIUS_API_KEY}"
     payload = {
@@ -232,12 +284,4 @@ async def fetch_token_metadata(token_mint: str) -> dict:
                 raise Exception(f"Helius returned status {resp.status}")
 
             data = await resp.json()
-            result = data.get("result")
-            if not result:
-                return {"token": token_mint, "symbol": None, "content": []}
-
-            token_info = result.get("token_info", {})
-            content = result.get("content", {})
-            symbol = token_info.get("symbol") or token_mint
-            return {"token": token_mint, "symbol": symbol, "content": content}
-
+            return parse_token_metadata_response(token_mint, data)

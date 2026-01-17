@@ -43,7 +43,9 @@ async def inspect_token(token_mint: str):
             metadata = {
                 "token": token_mint,
                 "symbol": None,
-                "content": []
+                "content": [],
+                "decimals": None,
+                "supply": None,
             }
         await save_token_metadata(pool, metadata)
 

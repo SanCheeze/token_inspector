@@ -50,14 +50,44 @@ async def token_exists(pool, token: str) -> bool:
 async def save_token_metadata(pool: asyncpg.pool.Pool, metadata: dict):
     pool = _ensure_pool(pool)
     query = """
-    INSERT INTO tokens (token, symbol, content)
-    VALUES ($1, $2, $3)
+    INSERT INTO tokens (token, symbol, content, supply)
+    VALUES ($1, $2, $3, $4)
     ON CONFLICT (token) DO UPDATE
     SET symbol = EXCLUDED.symbol,
-        content = EXCLUDED.content
+        content = EXCLUDED.content,
+        supply = COALESCE(EXCLUDED.supply, tokens.supply)
     """
     async with pool.acquire() as conn:
-        await conn.execute(query, metadata["token"], metadata["symbol"], json.dumps(metadata["content"]))
+        await conn.execute(
+            query,
+            metadata["token"],
+            metadata["symbol"],
+            json.dumps(metadata["content"]),
+            metadata.get("supply"),
+        )
+
+
+def resolve_supply_update(existing_supply: int | None, incoming_supply: int | None) -> int | None:
+    return incoming_supply if incoming_supply is not None else existing_supply
+
+
+async def update_token_supply(pool: asyncpg.pool.Pool, token: str, supply: int | None):
+    pool = _ensure_pool(pool)
+    if supply is None:
+        return
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE tokens SET supply=$2 WHERE token=$1;",
+            token,
+            supply,
+        )
+
+
+async def load_tokens_missing_supply(pool: asyncpg.pool.Pool) -> list[str]:
+    pool = _ensure_pool(pool)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT token FROM tokens WHERE supply IS NULL;")
+    return [row["token"] for row in rows]
 
 
 async def load_token_metadata(pool, token: str) -> Optional[dict]:

@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS tokens (
     token TEXT UNIQUE NOT NULL,
     symbol TEXT,
     content JSONB,
+    supply BIGINT,
     trades JSONB,
     trades_updated_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
