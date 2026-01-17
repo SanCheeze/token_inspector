@@ -46,6 +46,7 @@ def build_dataset(
 
     for _, row in df_tokens.iterrows():
         trades = _parse_trades(row.get(TRADES_COLUMN))
+        trades = [normalize_trade(trade) for trade in trades]
         if not trades:
             skipped_empty += 1
             continue
