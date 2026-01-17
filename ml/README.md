@@ -19,19 +19,12 @@
 
 ### Режим DB
 ```bash
-python -m ml.cli.ml_cli build-dataset-db \
-  --limit 5000 \
-  --out ml/data/dataset.parquet \
-  --meta-out ml/data/dataset_meta.parquet \
-  --bundle default
+python -m ml.cli.ml_cli build-dataset-db --limit 5000 --out ml/data/dataset.parquet --meta-out ml/data/dataset_meta.parquet --bundle default
 ```
 
 ### Режим файла
 ```bash
-python -m ml.cli.ml_cli build-dataset \
-  --input data/tokens.parquet \
-  --out ml/data/dataset.parquet \
-  --meta-out ml/data/dataset_meta.parquet
+python -m ml.cli.ml_cli train --data ml/data/dataset.parquet --meta ml/data/dataset_meta.parquet --artifacts artifacts/ml_mcap_model
 ```
 
 Примечания:

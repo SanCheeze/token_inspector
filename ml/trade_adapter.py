@@ -26,9 +26,12 @@ def _coerce_int(value: Any) -> int | None:
     if value is None:
         return None
     try:
-        return int(value)
+        coerced = int(value)
     except (TypeError, ValueError):
         return None
+    if coerced > 10**11:
+        return coerced // 1000
+    return coerced
 
 
 def normalize_trade(trade: dict) -> dict:
