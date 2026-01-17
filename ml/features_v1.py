@@ -3,6 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from ml.marketcap import calc_usd_mcap
+from ml.schema import FEATURE_NAMES
 from ml.trade_adapter import normalize_trade
 
 
@@ -59,11 +60,14 @@ def build_features(
     )
     bundle_net_flow = bundle_buy - bundle_sell
 
-    return {
+    computed = {
         "f_trades_total": float(trades_total),
         "f_volume_total_usd": float(volume_total),
         "f_avg_trade_usd": float(avg_trade),
         "f_max_trade_usd": float(max_trade),
+        "f_volume_min0_usd": float(volume_min0),
+        "f_volume_min1_usd": float(volume_min1),
+        "f_volume_min2_usd": float(volume_min2),
         "f_unique_wallets": float(unique_wallets),
         "f_trades_buy": float(len(buy_trades)),
         "f_trades_sell": float(len(sell_trades)),
@@ -71,9 +75,7 @@ def build_features(
         "f_volume_sell_usd": float(volume_sell),
         "f_buy_sell_ratio": float((len(buy_trades) + 1) / (len(sell_trades) + 1)),
         "f_net_flow_usd": float(volume_buy - volume_sell),
-        "f_volume_min0_usd": float(volume_min0),
-        "f_volume_min1_usd": float(volume_min1),
-        "f_volume_min2_usd": float(volume_min2),
+        "f_volume_accel": float(volume_accel_2_1),
         "f_volume_accel_1_0": float(volume_accel_1_0),
         "f_volume_accel_2_1": float(volume_accel_2_1),
         "f_max_usd_mcap_0_3m": float(max_usd_mcap) if max_usd_mcap is not None else 0.0,
@@ -82,6 +84,7 @@ def build_features(
         "f_bundle_volume_share": float(bundle_volume_share),
         "f_bundle_net_flow_usd": float(bundle_net_flow),
     }
+    return {name: computed.get(name, 0.0) for name in FEATURE_NAMES}
 
 
 def _volume_in_window(trades: list[dict], start_ts: int, end_ts: int) -> Decimal:

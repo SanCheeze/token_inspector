@@ -28,7 +28,10 @@ async def load_tokens(
 ) -> pd.DataFrame:
     limit_value = limit or 1000
     available_columns = await _get_columns(pool, TOKENS_TABLE)
-    select_columns = [TOKEN_COLUMN, TRADES_COLUMN]
+    select_columns = [_select_alias(TOKEN_COLUMN, available_columns)]
+    select_columns.append(_select_alias(TRADES_COLUMN, available_columns))
+    token_filter_column = _resolve_filter_column(TOKEN_COLUMN, available_columns)
+    trades_filter_column = _resolve_filter_column(TRADES_COLUMN, available_columns)
     if MAX_MARKET_CAP_COLUMN in available_columns:
         select_columns.append(MAX_MARKET_CAP_COLUMN)
     if "supply" in available_columns:
@@ -37,10 +40,16 @@ async def load_tokens(
         if optional in available_columns:
             select_columns.append(optional)
     order_column = CREATED_TS_COLUMN if CREATED_TS_COLUMN in available_columns else "id"
+    where_clauses = ["($1::text IS NULL OR {col} = $1)".format(col=token_filter_column)]
+    if "supply" in available_columns:
+        where_clauses.append("supply IS NOT NULL")
+    if trades_filter_column:
+        where_clauses.append(f"{trades_filter_column} IS NOT NULL")
+        where_clauses.append(f"jsonb_array_length({trades_filter_column}) > 0")
     query = f"""
         SELECT {", ".join(select_columns)}
         FROM {TOKENS_TABLE}
-        WHERE ($1::text IS NULL OR {TOKEN_COLUMN} = $1)
+        WHERE {" AND ".join(where_clauses)}
         ORDER BY {order_column} DESC NULLS LAST
         LIMIT $2;
     """
@@ -87,6 +96,26 @@ def _parse_trades(raw: Any) -> list[dict]:
             logger.warning("Failed to parse trades JSON payload")
             return []
     return list(raw) if isinstance(raw, (tuple, set)) else []
+
+
+def _select_alias(column: str, available_columns: set[str]) -> str:
+    if column in available_columns:
+        return column
+    if column != "token" and "token" in available_columns and column == TOKEN_COLUMN:
+        return f"token AS {TOKEN_COLUMN}"
+    if column != "trades" and "trades" in available_columns and column == TRADES_COLUMN:
+        return f"trades AS {TRADES_COLUMN}"
+    return column
+
+
+def _resolve_filter_column(column: str, available_columns: set[str]) -> str | None:
+    if column in available_columns:
+        return column
+    if column != "token" and "token" in available_columns and column == TOKEN_COLUMN:
+        return "token"
+    if column != "trades" and "trades" in available_columns and column == TRADES_COLUMN:
+        return "trades"
+    return None
 
 
 async def load_bundle_wallets(pool: asyncpg.Pool, bundle_name: str | None = None) -> set[str]:

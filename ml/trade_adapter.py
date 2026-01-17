@@ -37,14 +37,28 @@ def _coerce_int(value: Any) -> int | None:
 def normalize_trade(trade: dict) -> dict:
     return {
         "ts": _coerce_int(
-            _first_value(trade, ["ts", "timestamp", "blockTime", "block_time", "time"])
+            _first_value(
+                trade,
+                [
+                    "ts",
+                    "timestamp",
+                    "blockTime",
+                    "block_time",
+                    "time",
+                    "Human Time TS",
+                    "human_time_ts",
+                ],
+            )
         ),
         "from": _first_value(
             trade,
-            ["from", "from_address", "wallet", "owner", "maker", "taker"],
+            ["from", "From", "from_address", "wallet", "owner", "maker", "taker"],
         ),
         "value": _coerce_decimal(
-            _first_value(trade, ["value", "usd_value", "usdValue", "usd_value_usd"])
+            _first_value(
+                trade,
+                ["value", "Value", "usd_value", "usdValue", "usd_value_usd"],
+            )
         ),
         "token1": _first_value(trade, ["token1", "Token1", "token_1", "tokenA", "tokenIn"]),
         "amount1": _coerce_decimal(
