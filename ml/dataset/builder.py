@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from typing import Any
 
 import asyncpg
 import numpy as np
 import pandas as pd
+from dotenv import load_dotenv
 
 from ml.config import (
     RAW_TARGET_NAME,
@@ -50,12 +53,23 @@ def _parse_supply(raw_supply: Any) -> float | None:
     return supply_value
 
 
+def _load_dsn(dsn: str | None) -> str:
+    if dsn:
+        return dsn
+    env_path = Path(__file__).resolve().parents[2] / ".env"
+    load_dotenv(env_path)
+    dsn_env = os.getenv("DB_URL")
+    if not dsn_env:
+        raise RuntimeError("DB_URL environment variable is not set")
+    return dsn_env
+
+
 async def build_dataset_from_db(
-    dsn: str,
+    dsn: str | None,
     limit: int | None = None,
     bundle_name: str | None = None,
 ) -> pd.DataFrame:
-    pool = await asyncpg.create_pool(dsn=dsn)
+    pool = await asyncpg.create_pool(dsn=_load_dsn(dsn))
     try:
         df_tokens = await load_tokens_df(pool, limit=limit)
         bundle_wallets = await load_bundle_wallets(pool, bundle_name)

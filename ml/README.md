@@ -2,7 +2,7 @@
 
 ## Датасет из DB
 ```bash
-python -m ml.cli build-dataset --dsn $DATABASE_URL --limit 5000 --out data/datasets/ds_v1.parquet
+python -m ml.cli build-dataset --limit 5000 --out data/datasets/ds_v1.parquet
 ```
 
 ## Обучение

@@ -55,7 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     build_parser = subparsers.add_parser("build-dataset", help="Build dataset from DB")
-    build_parser.add_argument("--dsn", required=True, help="Database DSN")
+    build_parser.add_argument("--dsn", default=None, help="Database DSN")
     build_parser.add_argument("--limit", type=int, default=None)
     build_parser.add_argument("--bundle-name", default=None)
     build_parser.add_argument("--out", default=DEFAULT_DATASET_PATH)
