@@ -69,4 +69,6 @@ def normalize_trade(trade: dict) -> dict:
                 "token2Decimals",
             ],
         ),
+        "platforms": _first_value(trade, ["platforms", "Platforms", "platform", "Platform"]),
+        "sources": _first_value(trade, ["sources", "Sources", "source", "Source"]),
     }
