@@ -70,11 +70,11 @@ def _load_trades(path: str) -> list[dict]:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def _init_pool_from_env() -> None:
+def _get_db_url_from_env() -> str:
     db_url = os.getenv("DB_URL") or os.getenv("DATABASE_URL") or os.getenv("POSTGRES_DSN")
     if not db_url:
         raise RuntimeError("DB_URL/DATABASE_URL/POSTGRES_DSN environment variable is not set")
-    asyncio.run(init_pg(db_url))
+    return db_url
 
 
 def main() -> None:
@@ -91,18 +91,21 @@ def main() -> None:
         return
 
     if args.command == "build-dataset-db":
-        _init_pool_from_env()
-        pool = get_pool()
+        db_url = _get_db_url_from_env()
 
         async def _run() -> None:
-            features, target, meta = await build_dataset_from_db(
-                pool, limit=args.limit, bundle_name=args.bundle
-            )
-            dataset = pd.concat([features, target], axis=1)
-            _save_df(dataset, args.out)
-            _save_df(meta, args.meta_out)
-            logger.info("Saved dataset to %s", args.out)
-            await pool.close()
+            await init_pg(db_url)
+            pool = get_pool()
+            try:
+                features, target, meta = await build_dataset_from_db(
+                    pool, limit=args.limit, bundle_name=args.bundle
+                )
+                dataset = pd.concat([features, target], axis=1)
+                _save_df(dataset, args.out)
+                _save_df(meta, args.meta_out)
+                logger.info("Saved dataset to %s", args.out)
+            finally:
+                await pool.close()
 
         asyncio.run(_run())
         return
