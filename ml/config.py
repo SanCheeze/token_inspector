@@ -1,30 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
-WINDOW_SEC = 300
-WINDOW_MINUTES = WINDOW_SEC / 60
-VOLUME_ACCEL_SPLIT_SEC = 120
-
-TRADES_COLUMN = "trades"
 TOKEN_COLUMN = "token"
-MAX_MARKET_CAP_COLUMN = "max_market_cap"
-CREATED_TS_COLUMN = "created_at"
-FIRST_TRADE_TS_COLUMN = "first_trade_ts"
-TARGET_COLUMN = "target_log_mcap"
+TRADES_COLUMN = "trades"
+SUPPLY_COLUMN = "supply"
 
-TOKENS_TABLE = "tokens"
-ML_PRED_COLUMN = "ml_pred"
+FEATURE_WINDOW_SEC = 180
+TARGET_WINDOW_SEC = 120
+TARGET_START_OFFSET_SEC = 180
 
-VOLUME_THRESHOLDS_USD = (100.0, 1000.0)
-TRADES_COUNT_THRESHOLD = 10
+TARGET_NAME = "target_log1p_usd_mcap_3_5m"
+RAW_TARGET_NAME = "target_usd_mcap_3_5m"
 
+RANDOM_SEED = 42
 
-@dataclass(frozen=True)
-class ModelConfig:
-    window_sec: int = WINDOW_SEC
-    target_column: str = TARGET_COLUMN
-    max_market_cap_column: str = MAX_MARKET_CAP_COLUMN
-
-
-MODEL_CONFIG = ModelConfig()
+DEFAULT_DATASET_PATH = "data/datasets/ds_v1.parquet"
+DEFAULT_MODEL_PATH = "ml/artifacts/model.joblib"

@@ -1,6 +1,6 @@
 asyncpg
+joblib
 numpy
 pandas
 pyarrow
-lightgbm
-xgboost
+scikit-learn

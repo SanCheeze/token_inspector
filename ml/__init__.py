@@ -1,5 +1,29 @@
-"""ML module for max market cap prediction."""
+"""ML module for dataset building and modeling."""
 
-from .config import MODEL_CONFIG
+from .config import (
+    DEFAULT_DATASET_PATH,
+    DEFAULT_MODEL_PATH,
+    FEATURE_WINDOW_SEC,
+    RANDOM_SEED,
+    RAW_TARGET_NAME,
+    SUPPLY_COLUMN,
+    TARGET_NAME,
+    TARGET_START_OFFSET_SEC,
+    TARGET_WINDOW_SEC,
+    TOKEN_COLUMN,
+    TRADES_COLUMN,
+)
 
-__all__ = ["MODEL_CONFIG"]
+__all__ = [
+    "DEFAULT_DATASET_PATH",
+    "DEFAULT_MODEL_PATH",
+    "FEATURE_WINDOW_SEC",
+    "RANDOM_SEED",
+    "RAW_TARGET_NAME",
+    "SUPPLY_COLUMN",
+    "TARGET_NAME",
+    "TARGET_START_OFFSET_SEC",
+    "TARGET_WINDOW_SEC",
+    "TOKEN_COLUMN",
+    "TRADES_COLUMN",
+]
