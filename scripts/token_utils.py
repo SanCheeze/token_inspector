@@ -11,6 +11,7 @@ from collections import deque
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
+from decimal import Decimal, InvalidOperation
 from typing import Any, List
 
 load_dotenv()
@@ -219,10 +220,10 @@ def filter_wallets_by_min_buy(df_wallets: pd.DataFrame, min_usd: float):
 
 # ------------------- Helius -------------------
 
-def _parse_token_info(token_mint: str, token_info: dict | None) -> tuple[int | None, int | None]:
+def _parse_token_info(token_mint: str, token_info: dict | None) -> Decimal | None:
     if not token_info:
         LOGGER.warning("Token info отсутствует для %s", token_mint)
-        return None, None
+        return None
 
     decimals = token_info.get("decimals")
     if decimals is not None and not isinstance(decimals, int):
@@ -234,10 +235,17 @@ def _parse_token_info(token_mint: str, token_info: dict | None) -> tuple[int | N
         LOGGER.warning("Некорректный supply для %s: %r", token_mint, supply_raw)
         supply_raw = None
 
-    if supply_raw is not None:
-        LOGGER.info("Найден supply для %s: %s (decimals=%s)", token_mint, supply_raw, decimals)
+    if supply_raw is None or decimals is None:
+        return None
 
-    return supply_raw, decimals
+    try:
+        supply = Decimal(supply_raw) / (Decimal(10) ** decimals)
+    except (InvalidOperation, TypeError):
+        LOGGER.warning("Не удалось нормализовать supply для %s: %r/%r", token_mint, supply_raw, decimals)
+        return None
+
+    LOGGER.info("Найден supply для %s: %s (decimals=%s)", token_mint, supply_raw, decimals)
+    return supply
 
 
 def parse_token_metadata_response(token_mint: str, data: dict[str, Any]) -> dict:
@@ -248,7 +256,6 @@ def parse_token_metadata_response(token_mint: str, data: dict[str, Any]) -> dict
             "token": token_mint,
             "symbol": None,
             "content": [],
-            "decimals": None,
             "supply": None,
         }
 
@@ -258,14 +265,13 @@ def parse_token_metadata_response(token_mint: str, data: dict[str, Any]) -> dict
     if not symbol:
         symbol = token_mint
 
-    supply_raw, decimals = _parse_token_info(token_mint, token_info if isinstance(token_info, dict) else None)
+    supply = _parse_token_info(token_mint, token_info if isinstance(token_info, dict) else None)
 
     return {
         "token": token_mint,
         "symbol": symbol,
         "content": content,
-        "decimals": decimals,
-        "supply": supply_raw,
+        "supply": supply,
     }
 
 

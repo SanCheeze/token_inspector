@@ -1,4 +1,5 @@
 import json
+from decimal import Decimal
 from typing import List, Optional
 
 import asyncpg
@@ -67,11 +68,14 @@ async def save_token_metadata(pool: asyncpg.pool.Pool, metadata: dict):
         )
 
 
-def resolve_supply_update(existing_supply: int | None, incoming_supply: int | None) -> int | None:
+def resolve_supply_update(
+    existing_supply: Decimal | None,
+    incoming_supply: Decimal | None,
+) -> Decimal | None:
     return incoming_supply if incoming_supply is not None else existing_supply
 
 
-async def update_token_supply(pool: asyncpg.pool.Pool, token: str, supply: int | None):
+async def update_token_supply(pool: asyncpg.pool.Pool, token: str, supply: Decimal | None):
     pool = _ensure_pool(pool)
     if supply is None:
         return

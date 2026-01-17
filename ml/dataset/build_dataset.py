@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import numpy as np
@@ -52,7 +53,8 @@ def build_dataset(
             skipped_window += 1
             continue
 
-        max_market_cap = row.get(MAX_MARKET_CAP_COLUMN)
+        supply = _coerce_decimal(row.get("supply"))
+        max_market_cap = _compute_max_usd_mcap(trades, token_mint, t0, supply)
         if max_market_cap is None or float(max_market_cap) <= 0:
             skipped_target += 1
             continue
@@ -135,3 +137,74 @@ def _parse_trades(raw: Any) -> list[dict]:
             logger.warning("Failed to parse trades JSON payload")
             return []
     return list(raw) if isinstance(raw, (tuple, set)) else []
+
+
+def _coerce_decimal(value: Any) -> Decimal | None:
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return None
+    try:
+        return value if isinstance(value, Decimal) else Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+
+def _extract_token_amount(trade: dict, token_mint: str) -> Decimal | None:
+    if trade.get("token1") == token_mint:
+        amount_raw = trade.get("amount1")
+        decimals = trade.get("token1_decimals")
+    elif trade.get("token2") == token_mint:
+        amount_raw = trade.get("amount2")
+        decimals = trade.get("token2_decimals")
+    else:
+        return None
+
+    if amount_raw in (None, 0):
+        return None
+    if decimals is None:
+        return None
+    try:
+        amount = Decimal(str(amount_raw))
+        denom = Decimal(10) ** int(decimals)
+        token_amount = amount / denom
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+    return token_amount if token_amount > 0 else None
+
+
+def _compute_max_usd_mcap(
+    trades: list[dict],
+    token_mint: str,
+    t0: int,
+    supply: Decimal | None,
+) -> Decimal | None:
+    if supply is None or supply <= 0:
+        return None
+    window_start = t0 + 180
+    window_end = t0 + 300
+    max_mcap: Decimal | None = None
+
+    for trade in trades:
+        ts = trade.get("ts")
+        if ts is None:
+            continue
+        try:
+            ts_value = int(ts)
+        except (TypeError, ValueError):
+            continue
+        if ts_value < window_start or ts_value > window_end:
+            continue
+
+        token_amount = _extract_token_amount(trade, token_mint)
+        if token_amount is None:
+            continue
+
+        usd_value = _coerce_decimal(trade.get("value"))
+        if usd_value is None or usd_value <= 0:
+            continue
+
+        usd_price = usd_value / token_amount
+        usd_mcap = usd_price * supply
+        if max_mcap is None or usd_mcap > max_mcap:
+            max_mcap = usd_mcap
+
+    return max_mcap

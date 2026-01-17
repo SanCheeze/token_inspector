@@ -28,11 +28,11 @@ async def load_tokens(
 ) -> pd.DataFrame:
     limit_value = limit or 1000
     available_columns = await _get_columns(pool, TOKENS_TABLE)
-    select_columns = [
-        TOKEN_COLUMN,
-        TRADES_COLUMN,
-        MAX_MARKET_CAP_COLUMN,
-    ]
+    select_columns = [TOKEN_COLUMN, TRADES_COLUMN]
+    if MAX_MARKET_CAP_COLUMN in available_columns:
+        select_columns.append(MAX_MARKET_CAP_COLUMN)
+    if "supply" in available_columns:
+        select_columns.append("supply")
     for optional in (CREATED_TS_COLUMN, FIRST_TRADE_TS_COLUMN):
         if optional in available_columns:
             select_columns.append(optional)
@@ -50,7 +50,12 @@ async def load_tokens(
     records = [dict(row) for row in rows]
     df = pd.DataFrame(records)
     if df.empty:
-        return pd.DataFrame(columns=[TOKEN_COLUMN, TRADES_COLUMN, MAX_MARKET_CAP_COLUMN])
+        columns = [TOKEN_COLUMN, TRADES_COLUMN]
+        if MAX_MARKET_CAP_COLUMN in available_columns:
+            columns.append(MAX_MARKET_CAP_COLUMN)
+        if "supply" in available_columns:
+            columns.append("supply")
+        return pd.DataFrame(columns=columns)
 
     df[TRADES_COLUMN] = df[TRADES_COLUMN].apply(_parse_trades)
     return df

@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+from decimal import Decimal
 
 from dotenv import load_dotenv
 
@@ -19,7 +20,7 @@ MAX_RETRIES = int(os.getenv("SUPPLY_BACKFILL_RETRIES", "3"))
 BACKOFF_SECONDS = float(os.getenv("SUPPLY_BACKFILL_BACKOFF", "1.5"))
 
 
-async def _fetch_supply_with_retry(token: str) -> int | None:
+async def _fetch_supply_with_retry(token: str) -> Decimal | None:
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             metadata = await fetch_token_metadata(token)
