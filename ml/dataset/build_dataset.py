@@ -268,18 +268,25 @@ def main_v1() -> None:
 
 
 def _resolve_t0(row: pd.Series, trades: list[dict]) -> int:
+    ts_values = [trade.get("ts") for trade in trades if trade.get("ts") is not None]
+    min_ts = int(min(ts_values)) if ts_values else None
+    max_ts = int(max(ts_values)) if ts_values else None
+
     created_ts = (
         _coerce_ts(row.get(CREATED_TS_COLUMN)) if CREATED_TS_COLUMN in row.index else None
     )
-    if created_ts is not None:
-        return created_ts
+    if created_ts is not None and min_ts is not None and max_ts is not None:
+        if min_ts <= created_ts <= max_ts:
+            return created_ts
+
     first_trade_ts = (
         _coerce_ts(row.get(FIRST_TRADE_TS_COLUMN)) if FIRST_TRADE_TS_COLUMN in row.index else None
     )
-    if first_trade_ts is not None:
-        return first_trade_ts
-    ts_values = [trade.get("ts") for trade in trades if trade.get("ts") is not None]
-    return int(min(ts_values)) if ts_values else 0
+    if first_trade_ts is not None and min_ts is not None and max_ts is not None:
+        if min_ts <= first_trade_ts <= max_ts:
+            return first_trade_ts
+
+    return int(min_ts) if min_ts is not None else (created_ts or first_trade_ts or 0)
 
 
 def _coerce_ts(value: Any) -> int | None:
@@ -290,9 +297,12 @@ def _coerce_ts(value: Any) -> int | None:
     if hasattr(value, "timestamp"):
         return int(value.timestamp())
     try:
-        return int(value)
+        coerced = int(value)
     except (TypeError, ValueError):
         return None
+    if coerced > 10**11:
+        return coerced // 1000
+    return coerced
 
 
 def _parse_trades(raw: Any) -> list[dict]:
