@@ -90,7 +90,7 @@ def _parse_trades(raw: Any) -> list[dict]:
 
 
 async def load_bundle_wallets(pool: asyncpg.Pool, bundle_name: str | None = None) -> set[str]:
-    file_path = Path("data/bundle_wallets.txt")
+    file_path = Path("ml/data/bundle_wallets.txt")
     if not file_path.exists():
         logger.info("Bundle wallets file not found, returning empty set")
         return set()

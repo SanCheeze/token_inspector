@@ -37,7 +37,7 @@ python -m ml.cli.ml_cli build-dataset \
 Примечания:
 - `trades` может быть JSON или строковым JSON.
 - `value` считается USD; сделки с не‑положительным значением пропускаются.
-- Bundle‑кошельки берутся из `data/bundle_wallets.txt` (по одному адресу в строке), если файл существует.
+- Bundle‑кошельки берутся из `ml/data/bundle_wallets.txt` (по одному адресу в строке), если файл существует.
 - Если в вашей схеме другие имена колонок — настройте `ml/config.py`.
 
 ## Обучение модели
@@ -67,7 +67,7 @@ python -m ml.cli.ml_cli infer \
 ```
 
 ## Bundle wallets
-Если в БД нет таблицы с bundle‑кошельками, ML модуль использует `data/bundle_wallets.txt`.
+Если в БД нет таблицы с bundle‑кошельками, ML модуль использует `ml/data/bundle_wallets.txt`.
 Если таблица есть — обновите `ml/dataset/db.py`.
 
 ## Опциональное сохранение предсказаний
