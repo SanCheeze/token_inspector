@@ -1,42 +1,54 @@
-# Max Market Cap Prediction (5-minute window)
+# ML: Max Market Cap Prediction (5-minute window)
 
-## Goal
-Build a model that predicts a token's **max market cap** using only trades from the first 5 minutes after launch.
+## Цель
+Построить модель, которая предсказывает **максимальную капитализацию токена** по сделкам из первых 5 минут после запуска.
 
-## Features
-Extracted per token (see `ml/schema.py` for stable ordering):
+## Признаки
+Вычисляются на токен (фиксированный порядок — `ml/schema.py`):
 
-- **Trades / Volume**: trade counts, buy/sell ratio, USD volume stats.
-- **Wallets / concentration**: unique wallets, top wallet volume share, Gini.
-- **Timing**: time-to-first/10 trades/100 USD/1000 USD, acceleration.
-- **Platforms / routing**: platform counts, top platform share, aggregator route flag.
-- **Bundle wallets** (optional): bundle share/participation metrics.
+- **Trades / Volume**: количество сделок, отношение buy/sell, статистики объёма в USD.
+- **Wallets / concentration**: уникальные кошельки, доля объёма топ-кошелька, Gini.
+- **Timing**: время до 1/10 сделок, 100/1000 USD, ускорение.
+- **Platforms / routing**: количество платформ, доля топ-платформы, флаг роутинга через агрегатор.
+- **Bundle wallets** (опционально): доля/участие bundle-кошельков.
 
-All features are computed **only within `[t0, t0 + 300s]`** to prevent leakage.
+Все признаки считаются **только в окне `[t0, t0 + 300s]`**, чтобы избежать leakage.
 
-## Dataset
-### DB mode
+## Создание датасета
+Датасеты **нужно сохранять внутри модуля `ml` в `ml/data/`**.
+
+### Режим DB
 ```bash
-python -m ml.cli.ml_cli build-dataset-db --limit 5000 --out data/dataset.parquet --meta-out data/dataset_meta.parquet --bundle default
+python -m ml.cli.ml_cli build-dataset-db \
+  --limit 5000 \
+  --out ml/data/dataset.parquet \
+  --meta-out ml/data/dataset_meta.parquet \
+  --bundle default
 ```
 
-### File mode
+### Режим файла
 ```bash
-python -m ml.cli.ml_cli build-dataset --input data/tokens.parquet --out data/dataset.parquet --meta-out data/dataset_meta.parquet
+python -m ml.cli.ml_cli build-dataset \
+  --input data/tokens.parquet \
+  --out ml/data/dataset.parquet \
+  --meta-out ml/data/dataset_meta.parquet
 ```
 
-Notes:
-- `trades` can be JSON or stringified JSON.
-- `value` is treated as USD and trades with non-positive value are skipped.
-- Bundle wallets default to `data/bundle_wallets.txt` if present (one wallet per line).
-- If your schema uses different column names, update `ml/config.py` accordingly.
+Примечания:
+- `trades` может быть JSON или строковым JSON.
+- `value` считается USD; сделки с не‑положительным значением пропускаются.
+- Bundle‑кошельки берутся из `data/bundle_wallets.txt` (по одному адресу в строке), если файл существует.
+- Если в вашей схеме другие имена колонок — настройте `ml/config.py`.
 
-## Training
+## Обучение модели
 ```bash
-python -m ml.cli.ml_cli train --data data/dataset.parquet --meta data/dataset_meta.parquet --artifacts artifacts/ml_mcap_model
+python -m ml.cli.ml_cli train \
+  --data ml/data/dataset.parquet \
+  --meta ml/data/dataset_meta.parquet \
+  --artifacts artifacts/ml_mcap_model
 ```
 
-Artifacts:
+Структура артефактов:
 ```
 artifacts/ml_mcap_model/<timestamp>/
   model.bin
@@ -46,15 +58,18 @@ artifacts/ml_mcap_model/<timestamp>/
   config.json
 ```
 
-## Inference
+## Использование натренированной модели (инференс)
 ```bash
-python -m ml.cli.ml_cli infer --token <mint> --trades data/trades.json --model artifacts/ml_mcap_model/<timestamp>
+python -m ml.cli.ml_cli infer \
+  --token <mint> \
+  --trades data/trades.json \
+  --model artifacts/ml_mcap_model/<timestamp>
 ```
 
 ## Bundle wallets
-If your DB does not have a bundle table, the ML module falls back to `data/bundle_wallets.txt`.
-If you have a source table, update `ml/dataset/db.py` accordingly.
+Если в БД нет таблицы с bundle‑кошельками, ML модуль использует `data/bundle_wallets.txt`.
+Если таблица есть — обновите `ml/dataset/db.py`.
 
-## Optional prediction storage
-`ml/dataset/db.py` includes `save_token_prediction(...)` which writes to `tokens.ml_pred` if present.
-If the column does not exist, the function returns without saving.
+## Опциональное сохранение предсказаний
+В `ml/dataset/db.py` есть `save_token_prediction(...)`, которая пишет в `tokens.ml_pred`.
+Если колонки нет, функция завершится без сохранения.

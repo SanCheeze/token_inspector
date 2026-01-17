@@ -213,7 +213,7 @@ async def cmd_wallet_history(message: types.Message):
     lines = message.text.strip().split("\n")
     first_line = lines[0].strip()
     first_parts = first_line.split()
-    last_n_days = 1
+    last_n_days = 3
 
     single_mode = False
     if len(first_parts) >= 2 and (len(first_parts) >= 3 or not first_parts[1].isdigit()):
