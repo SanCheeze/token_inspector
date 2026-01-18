@@ -8,6 +8,8 @@ import numpy as np
 from ml.config import FEATURE_WINDOW_SEC, TARGET_START_OFFSET_SEC, TARGET_WINDOW_SEC
 from ml.features.marketcap import calc_usd_mcap
 
+SOL_MINT = "So11111111111111111111111111111111111111112"
+
 
 def split_windows(trades: list[dict[str, Any]]) -> tuple[int, list[dict[str, Any]], list[dict[str, Any]]]:
     trades = [trade for trade in trades if trade.get("ts") is not None]
@@ -33,6 +35,12 @@ def _trade_side(trade: dict[str, Any], token_mint: str) -> str | None:
         side = side.lower()
     if side in {"buy", "sell"}:
         return side
+    token1 = str(trade.get("token1") or "")
+    token2 = str(trade.get("token2") or "")
+    if SOL_MINT in token2:
+        return "buy"
+    if SOL_MINT in token1:
+        return "sell"
     amount = trade.get("amount1") if trade.get("token1") == token_mint else trade.get("amount2")
     try:
         amount_value = float(amount)
