@@ -2,17 +2,17 @@
 
 ## Датасет из DB
 ```bash
-python -m ml.cli build-dataset --limit 5000 --out data/datasets/ds_v1.parquet
+python -m ml.cli build-dataset --limit 5000 --out ml/data/ds_v1.parquet
 ```
 
 ## Обучение
 ```bash
-python -m ml.cli train --data data/datasets/ds_v1.parquet --model-out ml/artifacts/model.joblib
+python -m ml.cli train --data ml/data/ds_v1.parquet --model-out ml/artifacts/model.joblib
 ```
 
 ## Предсказание
 ```bash
-python -m ml.cli predict --model ml/artifacts/model.joblib --data data/datasets/ds_v1.parquet --out data/preds.csv
+python -m ml.cli predict --model ml/artifacts/model.joblib --data ml/data/ds_v1.parquet --out data/preds.csv
 ```
 
 ## Примечания

@@ -12,7 +12,12 @@ def spearman_corr(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     pred_rank = pd.Series(y_pred).rank().to_numpy()
     if true_rank.size < 2:
         return 0.0
-    return float(np.corrcoef(true_rank, pred_rank)[0, 1])
+    if np.std(true_rank) == 0 or np.std(pred_rank) == 0:
+        return 0.0
+    corr = np.corrcoef(true_rank, pred_rank)[0, 1]
+    if np.isnan(corr):
+        return 0.0
+    return float(corr)
 
 
 def evaluate_predictions(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:

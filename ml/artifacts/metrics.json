@@ -1,0 +1,6 @@
+{
+  "mae": 0.28970470644615043,
+  "spearman": NaN,
+  "target": "target_log1p_usd_mcap_3_5m",
+  "model_type": "hgb"
+}
