@@ -2,10 +2,10 @@ __pycache__/
 venv/
 .venv/
 
-data/*
+data/
 !/data/.gitkeep
-jupyter/*
-ml/data/*
+jupyter/
+ml/data/
 !ml/data/bundle_wallets.txt
 
 *.patch
