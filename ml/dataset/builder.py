@@ -15,7 +15,12 @@ from ml.config import (
     TOKEN_COLUMN,
     TRADES_COLUMN,
 )
-from ml.db import load_bundle_wallets, load_tokens_df, parse_trades_payload
+from ml.db import (
+    load_bundle_wallets,
+    load_token_by_mint,
+    load_tokens_df,
+    parse_trades_payload,
+)
 from ml.features.marketcap import calc_usd_mcap
 from ml.features.trade_normalize import normalize_trade
 from ml.features.v1 import build_features_v1, split_windows
@@ -105,6 +110,43 @@ async def build_dataset_from_db(
         rows.append(row_data)
 
     return pd.DataFrame(rows)
+
+
+async def build_predict_dataset_from_db(
+    dsn: str | None,
+    token_mint: str,
+    bundle_name: str | None = None,
+) -> pd.DataFrame:
+    pool = await asyncpg.create_pool(dsn=_load_dsn(dsn))
+    try:
+        token_row = await load_token_by_mint(pool, token_mint)
+        bundle_wallets = await load_bundle_wallets(pool, bundle_name)
+    finally:
+        await pool.close()
+
+    if not token_row:
+        return pd.DataFrame([])
+
+    supply = _parse_supply(token_row.get("supply"))
+    if supply is None:
+        return pd.DataFrame([])
+
+    trades = parse_trades_payload(token_row.get(TRADES_COLUMN))
+    if not trades:
+        return pd.DataFrame([])
+
+    normalized_trades = _normalize_trades(trades)
+    _, trades_0_3, _ = split_windows(normalized_trades)
+    if not trades_0_3:
+        return pd.DataFrame([])
+
+    features = build_features_v1(trades_0_3, token_mint, supply, bundle_wallets)
+    return pd.DataFrame([
+        {
+            "mint": token_mint,
+            **features,
+        }
+    ])
 
 
 def save_dataset(df: pd.DataFrame, path: str, fmt: str | None = None) -> None:

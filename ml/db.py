@@ -76,6 +76,23 @@ async def load_bundle_wallets(
     return wallets if wallets else None
 
 
+async def load_token_by_mint(
+    pool: asyncpg.Pool, token_mint: str
+) -> dict[str, Any] | None:
+    query = f"""
+        SELECT {TOKEN_COLUMN} AS token, {SUPPLY_COLUMN} AS supply, {TRADES_COLUMN} AS trades
+        FROM tokens
+        WHERE {TOKEN_COLUMN} = $1
+          AND {SUPPLY_COLUMN} IS NOT NULL
+          AND {SUPPLY_COLUMN} > 0
+          AND {TRADES_COLUMN} IS NOT NULL
+          AND jsonb_array_length({TRADES_COLUMN}) > 0
+        LIMIT 1
+    """
+    record = await pool.fetchrow(query, token_mint)
+    return dict(record) if record else None
+
+
 def parse_trades_payload(raw_trades: Any) -> list[dict[str, Any]]:
     if raw_trades is None:
         return []

@@ -419,51 +419,6 @@ async def get_related_wallets(pool, token_list) -> list[dict]:
 
 
 # ============================================================
-#  ADD PRICES TO TRADES
-# ============================================================
-
-async def enrich_wallets_trades_with_price(pool: asyncpg.Pool | None):
-    """
-    Проходит по всей таблице wallets
-    и добавляет поле price в каждый трейд
-    """
-
-    pool = _ensure_pool(pool)
-
-    async with pool.acquire() as conn:
-        rows = await conn.fetch("""
-            SELECT id, trades
-            FROM wallets
-        """)
-
-    if not rows:
-        print("No wallets found.")
-        return
-
-    updates = []
-
-    for r in rows:
-        wallet_id = r["id"]
-        trades = r["trades"]
-
-        new_trades = add_price_to_trades(trades)
-
-        updates.append((
-            json.dumps(new_trades),
-            wallet_id
-        ))
-
-    async with pool.acquire() as conn:
-        await conn.executemany("""
-            UPDATE wallets
-            SET trades = $1
-            WHERE id = $2
-        """, updates)
-
-    print(f"Updated trades with price for {len(updates)} wallets.")
-
-
-# ============================================================
 #  INSIDER BUYERS
 # ============================================================
 

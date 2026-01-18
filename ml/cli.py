@@ -5,7 +5,11 @@ import asyncio
 from pathlib import Path
 
 from ml.config import DEFAULT_DATASET_PATH, DEFAULT_MODEL_PATH
-from ml.dataset.builder import build_dataset_from_db, save_dataset
+from ml.dataset.builder import (
+    build_dataset_from_db,
+    build_predict_dataset_from_db,
+    save_dataset,
+)
 from ml.modeling.predict import predict_from_dataset, predict_from_db, save_predictions
 from ml.modeling.train import train_model
 
@@ -24,6 +28,18 @@ def _build_dataset(args: argparse.Namespace) -> None:
 
 def _train(args: argparse.Namespace) -> None:
     train_model(args.data, args.model_out, args.metrics_out, model_type=args.model_type)
+
+
+def _build_predict_dataset(args: argparse.Namespace) -> None:
+    async def _run():
+        df = await build_predict_dataset_from_db(
+            dsn=args.dsn,
+            token_mint=args.token_mint,
+            bundle_name=args.bundle_name,
+        )
+        save_dataset(df, args.out)
+
+    asyncio.run(_run())
 
 
 def _predict(args: argparse.Namespace) -> None:
@@ -60,6 +76,16 @@ def build_parser() -> argparse.ArgumentParser:
     build_parser.add_argument("--bundle-name", default=None)
     build_parser.add_argument("--out", default=DEFAULT_DATASET_PATH)
     build_parser.set_defaults(func=_build_dataset)
+
+    build_predict_parser = subparsers.add_parser(
+        "build-predict-dataset",
+        help="Build dataset for prediction from DB for one token",
+    )
+    build_predict_parser.add_argument("--dsn", default=None, help="Database DSN")
+    build_predict_parser.add_argument("--token-mint", required=True)
+    build_predict_parser.add_argument("--bundle-name", default=None)
+    build_predict_parser.add_argument("--out", default="data/datasets/predict_v1.parquet")
+    build_predict_parser.set_defaults(func=_build_predict_dataset)
 
     train_parser = subparsers.add_parser("train", help="Train model")
     train_parser.add_argument("--data", required=True)

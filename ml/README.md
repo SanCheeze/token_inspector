@@ -5,6 +5,11 @@
 python -m ml.cli build-dataset --limit 5000 --out ml/data/ds_v1.parquet
 ```
 
+## Датасет для предикта по одному токену
+```bash
+python -m ml.cli build-predict-dataset --token-mint <TOKEN_MINT> --out ml/data/predict_v1.parquet
+```
+
 ## Обучение
 ```bash
 python -m ml.cli train --data ml/data/ds_v1.parquet --model-out ml/artifacts/model.joblib

@@ -4,7 +4,8 @@ venv/
 
 data/
 !/data/.gitkeep
-jupyter/
+jupyter/*
+.ipynb_checkpoints/
 ml/data/
 !ml/data/bundle_wallets.txt
 
